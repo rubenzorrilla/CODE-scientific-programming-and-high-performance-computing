@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from laplace_fem import generate_mesh
+from mesh import generate_mesh
 
 
 @pytest.mark.parametrize("element_type,nodes_per_element,elements_per_cell", [
