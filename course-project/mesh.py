@@ -1,4 +1,4 @@
-"""Structured mesh generation with the Gmsh Python API."""
+"""Generate a structured rectangular mesh with the Gmsh Python API."""
 
 from __future__ import annotations
 
@@ -20,34 +20,32 @@ def generate_mesh(
     element_type: ElementType = "P1",
     output_file: str | Path | None = None,
 ) -> tuple[NDArray[np.float64], NDArray[np.int64], dict[str, NDArray[np.int64]]]:
-    """Generate a structured rectangular mesh using Gmsh.
+    """Generate a structured rectangular mesh.
 
     Parameters
     ----------
     length_x, length_y:
-        Side lengths of the rectangular domain. Both must be positive.
+        Positive dimensions of the rectangle.
     num_elements_x, num_elements_y:
-        Number of elements along the horizontal and vertical directions.
+        Number of elements along each direction.
     element_type:
-        ``"P1"`` for linear triangles or ``"Q1"`` for bilinear quadrilaterals.
+        "P1" for linear triangles or "Q1" for bilinear quadrilaterals.
     output_file:
-        Optional path at which to save the generated mesh in Gmsh's native format.
+        Optional path for saving the mesh in Gmsh's native format.
 
     Returns
     -------
     coordinates:
-        Array of nodal coordinates with shape ``(n_nodes, 2)``.
+        Nodal coordinates, shape (n_nodes, 2).
     elements:
-        Element connectivity with shape ``(n_elements, 3)`` for P1 or
-        ``(n_elements, 4)`` for Q1. Indices are zero-based.
+        Zero-based element connectivity, shape (n_elements, 3) for P1 or
+        (n_elements, 4) for Q1.
     boundaries:
-        Dictionary mapping ``"left"``, ``"right"``, ``"bottom"``, and ``"top"``
-        to arrays of zero-based node indices.
+        Node indices for the "left", "right", "bottom", and "top" boundaries.
 
     Notes
     -----
-    Gmsh node tags are mapped explicitly to contiguous zero-based indices.
-    The mesh is structured using transfinite meshing constraints.
+    Gmsh node tags are explicitly mapped to contiguous zero-based indices.
     """
     if length_x <= 0.0 or length_y <= 0.0:
         raise ValueError("length_x and length_y must be positive.")
@@ -61,7 +59,7 @@ def generate_mesh(
         gmsh.option.setNumber("General.Terminal", 0)
         gmsh.model.add("structured_rectangle")
 
-        # Counter-clockwise corner points.
+        # Rectangle corner points, ordered counter-clockwise.
         p1 = gmsh.model.geo.addPoint(0.0, 0.0, 0.0)
         p2 = gmsh.model.geo.addPoint(length_x, 0.0, 0.0)
         p3 = gmsh.model.geo.addPoint(length_x, length_y, 0.0)
@@ -74,10 +72,9 @@ def generate_mesh(
 
         loop = gmsh.model.geo.addCurveLoop([bottom, right, top, left])
         surface = gmsh.model.geo.addPlaneSurface([loop])
-
         gmsh.model.geo.synchronize()
 
-        # The argument is the number of nodes, hence elements + 1.
+        # Gmsh expects the number of nodes on each edge.
         gmsh.model.mesh.setTransfiniteCurve(bottom, num_elements_x + 1)
         gmsh.model.mesh.setTransfiniteCurve(top, num_elements_x + 1)
         gmsh.model.mesh.setTransfiniteCurve(left, num_elements_y + 1)
@@ -87,12 +84,11 @@ def generate_mesh(
         if element_type == "Q1":
             gmsh.model.mesh.setRecombine(2, surface)
 
-        # Physical groups give the boundaries stable, human-readable names.
         boundary_curves = {
-            "bottom": bottom,
-            "right": right,
-            "top": top,
             "left": left,
+            "right": right,
+            "bottom": bottom,
+            "top": top,
         }
         for name, curve in boundary_curves.items():
             physical_tag = gmsh.model.addPhysicalGroup(1, [curve])
@@ -112,7 +108,7 @@ def generate_mesh(
         node_coordinates = np.asarray(node_coordinates, dtype=float).reshape(-1, 3)
         coordinates = node_coordinates[:, :2]
 
-        # Gmsh tags are identifiers, not array indices.
+        # Gmsh tags are identifiers, not zero-based array positions.
         tag_to_index = {int(tag): i for i, tag in enumerate(node_tags)}
 
         if element_type == "P1":
@@ -139,12 +135,13 @@ def generate_mesh(
 
         boundaries: dict[str, NDArray[np.int64]] = {}
         for name, curve in boundary_curves.items():
-            boundary_node_tags, _, _ = gmsh.model.mesh.getNodes(1, curve, includeBoundary=True)
-            boundary_indices = np.array(
+            boundary_node_tags, _, _ = gmsh.model.mesh.getNodes(
+                1, curve, includeBoundary=True
+            )
+            boundaries[name] = np.asarray(
                 sorted({tag_to_index[int(tag)] for tag in boundary_node_tags}),
                 dtype=np.int64,
             )
-            boundaries[name] = boundary_indices
 
         return (
             np.asarray(coordinates, dtype=np.float64),

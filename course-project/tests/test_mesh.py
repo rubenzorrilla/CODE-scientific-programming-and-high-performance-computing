@@ -4,11 +4,16 @@ import pytest
 from mesh import generate_mesh
 
 
-@pytest.mark.parametrize("element_type,nodes_per_element,elements_per_cell", [
-    ("P1", 3, 2),
-    ("Q1", 4, 1),
-])
-def test_structured_square_mesh(element_type, nodes_per_element, elements_per_cell):
+@pytest.mark.parametrize(
+    "element_type,nodes_per_element,elements_per_cell",
+    [
+        ("P1", 3, 2),
+        ("Q1", 4, 1),
+    ],
+)
+def test_structured_rectangle_mesh(
+    element_type, nodes_per_element, elements_per_cell
+):
     nx, ny = 4, 3
     coordinates, elements, boundaries = generate_mesh(
         length_x=2.0,
