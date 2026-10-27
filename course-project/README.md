@@ -40,4 +40,21 @@ source .venv/bin/activate        # Linux/macOS
 
 python -m pip install -r requirements.txt
 ```
+
+## Running the tests
+
+The project includes tests to verify that the code works as expected. The tests are implemented using [pytest](https://docs.pytest.org/).
+
+From the `course-project/` directory, execute:
+
+```bash
+python -m pytest -v
+```
+
+Pytest automatically discovers the test files and executes the tests. The `-v` option displays the name and result of each test.
+
+A successful execution reports the tests as `PASSED`. If a test fails, pytest displays information about the failure to help identify the problem.
+
+## Current status
+
 The initial implementation provides structured mesh generation for P1 triangles and Q1 quadrilaterals. Finite element assembly, boundary-condition treatment, and solver components will be introduced in subsequent steps.
