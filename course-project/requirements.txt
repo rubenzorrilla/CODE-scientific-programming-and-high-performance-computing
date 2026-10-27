@@ -1,0 +1,4 @@
+numpy>=1.24
+scipy>=1.10
+gmsh>=4.11
+pytest>=7.0
