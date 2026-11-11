@@ -40,25 +40,46 @@ def test_q1_lhs_is_symmetric_and_has_constant_nullspace():
     assert np.linalg.eigvalsh(lhs).min() >= -1e-12
 
 
-@pytest.mark.parametrize(
-    "coordinates,solution",
-    [
-        (
-            np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]),
-            np.array([1.0, 2.0, 3.0]),
-        ),
-        (
-            np.array(
-                [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
-            ),
-            np.array([1.0, 2.0, 3.0, 4.0]),
-        ),
-    ],
-)
-def test_rhs_is_negative_element_residual(coordinates, solution):
-    lhs = calculate_element_lhs(coordinates)
-    rhs = calculate_element_rhs(coordinates, solution)
-    np.testing.assert_allclose(rhs, -(lhs @ solution))
+def test_p1_rhs_is_mass_weighted_forcing():
+    coordinates = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ]
+    )
+    forcing = np.array([1.0, 2.0, 3.0])
+    area = 0.5
+    mass = (area / 12.0) * (np.eye(3) + np.ones((3, 3)))
+
+    np.testing.assert_allclose(
+        calculate_element_rhs(coordinates, forcing), mass @ forcing
+    )
+
+
+def test_q1_constant_forcing_gives_mass_weighted_rhs():
+    coordinates = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [1.0, 1.0],
+            [0.0, 1.0],
+        ]
+    )
+    np.testing.assert_allclose(
+        calculate_element_rhs(coordinates, 1.0), np.full(4, 0.25)
+    )
+
+
+def test_zero_forcing_gives_zero_element_rhs():
+    coordinates = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ]
+    )
+    np.testing.assert_allclose(calculate_element_rhs(coordinates), 0.0)
 
 
 def test_invalid_element_node_count():
@@ -66,7 +87,7 @@ def test_invalid_element_node_count():
         calculate_element_lhs(np.zeros((5, 2)))
 
 
-def test_invalid_solution_size():
+def test_invalid_forcing_size():
     coordinates = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
     with pytest.raises(ValueError):
         calculate_element_rhs(coordinates, np.zeros(4))

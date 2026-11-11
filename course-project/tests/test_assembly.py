@@ -1,6 +1,6 @@
 import numpy as np
 
-from assembly import assemble_laplacian_system
+from assembly import assemble_element_systems, evaluate_forcing_values
 
 
 def square_triangular_mesh():
@@ -16,21 +16,39 @@ def square_triangular_mesh():
     return coordinates, elements
 
 
-def test_global_lhs_is_dense_symmetric_and_has_constant_nullspace():
+def test_local_element_systems_have_expected_shapes():
     coordinates, elements = square_triangular_mesh()
-    lhs, rhs = assemble_laplacian_system(
-        coordinates, elements, np.zeros(coordinates.shape[0])
+    local_lhs, local_rhs = assemble_element_systems(coordinates, elements)
+
+    assert local_lhs.shape == (2, 3, 3)
+    assert local_rhs.shape == (2, 3)
+    np.testing.assert_allclose(local_rhs, 0.0, atol=1e-12)
+    for element_lhs in local_lhs:
+        np.testing.assert_allclose(element_lhs, element_lhs.T, atol=1e-12)
+        np.testing.assert_allclose(element_lhs @ np.ones(3), 0.0, atol=1e-12)
+
+
+def test_scalar_forcing_is_evaluated_at_every_node():
+    coordinates, elements = square_triangular_mesh()
+    local_lhs, local_rhs = assemble_element_systems(
+        coordinates, elements, forcing=1.0
     )
 
-    assert isinstance(lhs, np.ndarray)
-    assert lhs.shape == (4, 4)
-    np.testing.assert_allclose(lhs, lhs.T, atol=1e-12)
-    np.testing.assert_allclose(lhs @ np.ones(4), 0.0, atol=1e-12)
-    np.testing.assert_allclose(rhs, 0.0, atol=1e-12)
+    assert local_lhs.shape == (2, 3, 3)
+    assert local_rhs.shape == (2, 3)
+    assert np.all(local_rhs > 0.0)
 
 
-def test_assembled_rhs_is_negative_global_residual():
+def test_forcing_function_is_evaluated_at_mesh_nodes():
     coordinates, elements = square_triangular_mesh()
-    solution = np.array([0.2, 1.0, -0.4, 0.7])
-    lhs, rhs = assemble_laplacian_system(coordinates, elements, solution)
-    np.testing.assert_allclose(rhs, -(lhs @ solution), atol=1e-12)
+    forcing = lambda x, y: x + y
+    values = evaluate_forcing_values(coordinates, forcing)
+
+    assert values.shape == (coordinates.shape[0],)
+    np.testing.assert_allclose(values, [0.0, 1.0, 1.0, 2.0])
+
+    local_lhs, local_rhs = assemble_element_systems(
+        coordinates, elements, forcing=forcing
+    )
+    assert local_lhs.shape == (2, 3, 3)
+    assert local_rhs.shape == (2, 3)

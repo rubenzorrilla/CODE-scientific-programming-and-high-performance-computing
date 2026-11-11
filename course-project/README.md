@@ -4,16 +4,24 @@ This project is part of the [Master's Degree in Computational and Data-Assisted 
 
 ## Overview
 
-The project solves the Laplace equation on a structured square mesh using the finite element method (FEM). It is designed to teach scientific Python, global assembly, boundary-condition imposition, linear solution strategies, visualization, and performance analysis. The FEM derivation is treated as a black box.
+The project solves the Poisson equation
+
+\[
+\nabla^2 u = f(x,y)
+\]
+
+on a structured square mesh using the finite element method (FEM). When \(f=0\), this is the homogeneous Laplace equation. The project is designed to teach scientific Python, local element assembly, global assembly, boundary-condition imposition, linear solution strategies, visualization, and performance analysis. The FEM derivation is treated as a black box.
 
 ## Current workflow
 
 1. **Mesh generation:** Create a structured mesh with [Gmsh](https://gmsh.info/), using P1 triangles or Q1 quadrilaterals.
-2. **Element calculations:** Compute each element's Laplacian matrix and negative residual.
-3. **Global assembly:** Accumulate element contributions into a global dense Jacobian and residual vector. This implementation is deliberately naive: it uses dense storage and explicit Python loops. It is the baseline students will profile and optimize.
-4. **Boundary conditions:** Collect prescribed values from named boundaries and impose Dirichlet conditions on the dense system.
-5. **Linear solve:** Solve the correction system with NumPy's dense direct solver.
-6. **Visualization:** Display the computed nodal solution with [PyVista](https://pyvista.org/).
+2. **Local element calculations:** Compute each element's stiffness matrix \(K_e\) and mass-weighted forcing vector \(F_e=M_e f_e\). This produces the local element systems \(K_e u_e = F_e\) as multidimensional arrays.
+3. **Global allocation:** A selected backend allocates the global matrix and RHS.
+4. **Global assembly:** The same backend scatters the local element contributions into the global system.
+5. **Boundary conditions:** Prescribed Dirichlet values are collected from named boundaries.
+6. **BC imposition:** The backend imposes those Dirichlet values on the global system.
+7. **Linear solve:** The backend solves the constrained system \(K u = F\).
+8. **Visualization:** The backend displays the computed nodal solution with [PyVista](https://pyvista.org/).
 
 ## Project structure
 
@@ -28,14 +36,50 @@ course-project/
 ├── boundary_conditions.py
 ├── solver.py
 ├── visualization.py
+├── backends/
+│   ├── __init__.py
+│   ├── dense_reference.py
+│   ├── dense_starter.py
+│   ├── sparse_starter.py
+│   ├── dense_gpu_starter.py
+│   └── sparse_gpu_starter.py
 └── tests/
     ├── test_mesh.py
     ├── test_laplacian_element.py
     ├── test_assembly.py
     ├── test_boundary_conditions.py
+    ├── test_backends.py
     ├── test_solver.py
     └── test_visualization.py
 ```
+
+## Backend interface
+
+Each backend module is called from `main.py` and should expose:
+
+```python
+allocate_global_system(number_of_nodes)
+assemble_global_system(global_lhs, global_rhs, element_lhs, element_rhs, elements)
+impose_dirichlet_conditions(global_lhs, global_rhs, constrained_dofs, prescribed_values)
+solve_linear_system(global_lhs, global_rhs)
+visualize(coordinates, elements, solution, scalar_name="u", show_edges=True, screenshot=None)
+```
+
+The local arrays produced by `assembly.assemble_element_systems` have shapes:
+
+- `element_lhs`: `(n_elements, n_local, n_local)`
+- `element_rhs`: `(n_elements, n_local)`
+
+`backends/dense_reference.py` is a private dense reference implementation. The starter modules are boiler plates:
+
+- `backends/dense_starter.py`
+- `backends/sparse_starter.py`
+- `backends/dense_gpu_starter.py`
+- `backends/sparse_gpu_starter.py`
+
+These starter modules intentionally raise `NotImplementedError` until students implement the global operations.
+
+`impose_dirichlet_conditions` should return a new system and leave the original input system unchanged, because `main.py` uses the original system for a PDE residual check.
 
 ## Setup
 
@@ -53,7 +97,19 @@ Run commands from the `course-project/` directory.
 python main.py
 ```
 
-The default configuration uses P1 triangular elements. Use Q1 quadrilaterals instead:
+The default backend is the dense reference implementation:
+
+```bash
+python main.py --backend backends.dense_reference
+```
+
+Select a student starter backend:
+
+```bash
+python main.py --backend backends.dense_starter
+```
+
+Use Q1 quadrilaterals:
 
 ```bash
 python main.py --element-type Q1
@@ -71,7 +127,7 @@ Save an image instead of opening an interactive window:
 python main.py --element-type Q1 --nx 20 --ny 20 --screenshot results/solution.png
 ```
 
-The example solves the homogeneous Laplace equation on the unit square. Dirichlet data are zero on the left, right, and bottom boundaries, and
+The default example solves the homogeneous Laplace equation, \(f=0\), on the unit square. Dirichlet data are zero on the left, right, and bottom boundaries, and
 
 \[
 u(x,1)=\sin(\pi x)
@@ -80,36 +136,45 @@ u(x,1)=\sin(\pi x)
 on the top boundary. The corresponding analytical solution is
 
 \[
-u(x,y)=rac{\sin(\pi x)\sinh(\pi y)}{\sinh(\pi)}.
+u(x,y)=\frac{\sin(\pi x)\sinh(\pi y)}{\sinh(\pi)}.
 \]
 
 The main script reports the free-DOF residual norm and the maximum nodal error relative to this analytical solution.
 
-## Residual convention
+## Forcing field
 
-For the homogeneous Laplace equation, each element contributes
+`assembly.assemble_element_systems` accepts a forcing field as a constant, a nodal array, or a function \(f(x,y)\):
 
-\[
-\mathbf{R}_e(\mathbf{u}_e)=\mathbf{K}_e\mathbf{u}_e,
-\qquad
-\mathbf{J}_e=rac{\partial\mathbf{R}_e}{\partial\mathbf{u}_e}=\mathbf{K}_e.
-\]
+```python
+forcing = lambda x, y: x + 2.0 * y
+element_lhs, element_rhs = assemble_element_systems(
+    coordinates, elements, forcing=forcing
+)
+```
 
-`assembly.py` assembles the global Jacobian and the negative residual, \(-\mathbf{R}(\mathbf{u})\). The linear system therefore solves for a correction:
-
-\[
-\mathbf{J}\,\Delta\mathbf{u}=-\mathbf{R}(\mathbf{u}).
-\]
-
-The initial assembly deliberately uses a dense NumPy matrix and nested Python loops. Since a finite element matrix is sparse, most stored entries are zero. Students are expected to profile this baseline and improve its memory use and execution time. The dense solver also has cubic computational cost in the number of unknowns.
-
-The prescribed values imposed on the correction are
+The forcing field is evaluated at mesh nodes and mass-weighted in each element:
 
 \[
-\Delta u_D = u_D^{\mathrm{prescribed}} - u_D^{\mathrm{current}}.
+F_e = M_e f_e.
 \]
 
-Starting from a zero field, one linear correction gives the solution of this linear problem.
+When `forcing = 0`, the system reduces to the homogeneous Laplace case. If forcing is nonzero, the default analytical solution in `main.py` no longer applies, so error should be checked against a corresponding known solution or through the PDE residual.
+
+## Linear system
+
+The global system is
+
+\[
+K u = F.
+\]
+
+After imposing Dirichlet conditions, the constrained system is
+
+\[
+K_{\mathrm{bc}} u = F_{\mathrm{bc}}.
+\]
+
+The values passed to the backend's `impose_dirichlet_conditions` are prescribed solution values, not corrections.
 
 ## Running the tests
 

@@ -1,10 +1,7 @@
 import numpy as np
 import pytest
 
-from boundary_conditions import (
-    apply_dirichlet_conditions,
-    collect_dirichlet_conditions,
-)
+from boundary_conditions import collect_dirichlet_conditions
 
 
 def test_collect_boundary_values_and_merge_corner_nodes():
@@ -41,12 +38,10 @@ def test_conflicting_corner_values_are_rejected():
         )
 
 
-def test_apply_dirichlet_condition_preserves_symmetry_and_lifts_rhs():
-    # Original equations: [[2,-1],[-1,2]] x = [0,0].
-    # Constrain x[0]=3; the free equation becomes 2*x[1]=3.
-    lhs = np.array([[2.0, -1.0], [-1.0, 2.0]])
-    rhs = np.zeros(2)
-    lhs_bc, rhs_bc = apply_dirichlet_conditions(lhs, rhs, [0], [3.0])
-
-    np.testing.assert_allclose(lhs_bc, [[1.0, 0.0], [0.0, 2.0]])
-    np.testing.assert_allclose(rhs_bc, [3.0, 3.0])
+def test_missing_boundary_name_is_rejected():
+    coordinates = np.array([[0.0, 0.0], [1.0, 0.0]])
+    boundaries = {"left": np.array([0])}
+    with pytest.raises(KeyError):
+        collect_dirichlet_conditions(
+            coordinates, boundaries, {"top": 1.0}
+        )
