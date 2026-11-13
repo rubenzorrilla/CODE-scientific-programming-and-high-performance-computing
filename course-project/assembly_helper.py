@@ -15,7 +15,7 @@ from numpy.typing import ArrayLike, NDArray
 from laplacian_element import calculate_element_lhs, calculate_element_rhs
 
 
-def evaluate_forcing_values(
+def _evaluate_forcing_values(
     coordinates: ArrayLike,
     forcing: float | Callable[[float, float], float] | ArrayLike = 0.0,
 ) -> NDArray[np.float64]:
@@ -53,7 +53,7 @@ def evaluate_forcing_values(
     return np.asarray(values, dtype=float)
 
 
-def assemble_element_systems(
+def collect_element_systems(
     coordinates: ArrayLike,
     elements: ArrayLike,
     forcing: float | Callable[[float, float], float] | ArrayLike = 0.0,
@@ -83,7 +83,7 @@ def assemble_element_systems(
     if np.any(elements < 0) or np.any(elements >= coordinates.shape[0]):
         raise ValueError("elements contains invalid node indices.")
 
-    forcing_values = evaluate_forcing_values(coordinates, forcing)
+    forcing_values = _evaluate_forcing_values(coordinates, forcing)
     number_of_elements, nodes_per_element = elements.shape
 
     local_lhs = np.empty(

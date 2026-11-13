@@ -55,7 +55,10 @@ def calculate_element_lhs(element_coordinates: ArrayLike) -> NDArray[np.float64]
 
     if coordinates.shape[0] == 3:
         return _calculate_p1_lhs(coordinates)
-    return _calculate_q1_lhs(coordinates)
+    elif coordinates.shape[0] == 4:
+        return _calculate_q1_lhs(coordinates)
+    else:
+        raise ValueError("Only P1 triangles (3 nodes) and Q1 quadrilaterals (4 nodes) are supported.")
 
 
 def calculate_element_rhs(

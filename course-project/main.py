@@ -7,15 +7,9 @@ from pathlib import Path
 
 import numpy as np
 
-from assembly import assemble_element_systems
-from boundary_conditions import collect_dirichlet_conditions
 from mesh import generate_mesh
-
-
-def exact_solution(x, y):
-    """Analytical harmonic field used to define boundary data and check error."""
-    return np.sin(np.pi * x) * np.sinh(np.pi * y) / np.sinh(np.pi)
-
+from assembly_helper import collect_element_systems
+from boundary_conditions import collect_dirichlet_conditions
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -58,10 +52,10 @@ def main() -> None:
     # Dirichlet conditions for u(x,y) = sin(pi*x)*sinh(pi*y)/sinh(pi):
     # u = 0 on left, right and bottom; u = sin(pi*x) on the top edge.
     boundary_values = {
-        "left": 0.0,
-        "right": 0.0,
-        "bottom": 0.0,
-        "top": lambda x, y: np.sin(np.pi * x),
+        "left": 1.0,
+        "right": "free",
+        "bottom": "free",
+        "top": lambda x, y: np.cos(np.pi * x),
     }
     constrained_dofs, prescribed_values = collect_dirichlet_conditions(
         coordinates, boundaries, boundary_values
@@ -70,9 +64,10 @@ def main() -> None:
     # The default example is homogeneous: forcing = 0.
     # To use a forcing field, replace this with a scalar, array, or f(x, y).
     forcing = 0.0
+    # forcing = lambda x, y: (x-0.5)**2 + (y-0.5)**2  # Example: f(x,y) = (x-0.5)^2 + (y-0.5)^2
 
     # Local element systems: K_e u_e = F_e.
-    element_lhs, element_rhs = assemble_element_systems(
+    element_lhs, element_rhs = collect_element_systems(
         coordinates, elements, forcing=forcing
     )
 
@@ -94,16 +89,12 @@ def main() -> None:
     free_mask[constrained_dofs] = False
     free_residual_norm = np.linalg.norm(residual[free_mask])
 
-    exact_values = exact_solution(coordinates[:, 0], coordinates[:, 1])
-    max_nodal_error = np.max(np.abs(solution - exact_values))
-
     print(f"Backend: {args.backend}")
     print(f"Element type: {args.element_type}")
     print(f"Number of nodes: {coordinates.shape[0]}")
     print(f"Number of elements: {elements.shape[0]}")
     print(f"Number of constrained DOFs: {constrained_dofs.size}")
     print(f"Free-DOF residual norm: {free_residual_norm:.6e}")
-    print(f"Maximum nodal error against analytical solution: {max_nodal_error:.6e}")
 
     backend.visualize(
         coordinates,

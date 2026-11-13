@@ -9,7 +9,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-import solver
 import visualization
 
 
@@ -170,9 +169,27 @@ def solve_linear_system(
     global_lhs: ArrayLike,
     global_rhs: ArrayLike,
 ) -> NDArray[np.float64]:
-    """Solve the dense linear system with the dense reference solver."""
-    return solver.solve_linear_system(global_lhs, global_rhs)
+    """Solve a dense linear system using ``numpy.linalg.solve``."""
 
+    if global_lhs.ndim != 2 or global_lhs.shape[0] != global_lhs.shape[1]:
+        raise ValueError("lhs must be a square matrix.")
+    if global_rhs.shape != (global_lhs.shape[0],):
+        raise ValueError("rhs must contain one value per matrix row.")
+    if not np.all(np.isfinite(global_lhs)) or not np.all(np.isfinite(global_rhs)):
+        raise ValueError("The linear system must contain only finite values.")
+
+    try:
+        solution = np.linalg.solve(global_lhs, global_rhs)
+    except np.linalg.LinAlgError as error:
+        raise RuntimeError(
+            "The dense linear system could not be solved. "
+            "Check that sufficient boundary conditions have been imposed."
+        ) from error
+
+    if not np.all(np.isfinite(solution)):
+        raise RuntimeError("The solver returned non-finite values.")
+
+    return solution
 
 def visualize(
     coordinates: ArrayLike,

@@ -1,6 +1,6 @@
 import numpy as np
 
-from assembly import assemble_element_systems, evaluate_forcing_values
+from assembly_helper import collect_element_systems, _evaluate_forcing_values
 
 
 def square_triangular_mesh():
@@ -18,7 +18,7 @@ def square_triangular_mesh():
 
 def test_local_element_systems_have_expected_shapes():
     coordinates, elements = square_triangular_mesh()
-    local_lhs, local_rhs = assemble_element_systems(coordinates, elements)
+    local_lhs, local_rhs = collect_element_systems(coordinates, elements)
 
     assert local_lhs.shape == (2, 3, 3)
     assert local_rhs.shape == (2, 3)
@@ -30,7 +30,7 @@ def test_local_element_systems_have_expected_shapes():
 
 def test_scalar_forcing_is_evaluated_at_every_node():
     coordinates, elements = square_triangular_mesh()
-    local_lhs, local_rhs = assemble_element_systems(
+    local_lhs, local_rhs = collect_element_systems(
         coordinates, elements, forcing=1.0
     )
 
@@ -42,12 +42,12 @@ def test_scalar_forcing_is_evaluated_at_every_node():
 def test_forcing_function_is_evaluated_at_mesh_nodes():
     coordinates, elements = square_triangular_mesh()
     forcing = lambda x, y: x + y
-    values = evaluate_forcing_values(coordinates, forcing)
+    values = _evaluate_forcing_values(coordinates, forcing)
 
     assert values.shape == (coordinates.shape[0],)
     np.testing.assert_allclose(values, [0.0, 1.0, 1.0, 2.0])
 
-    local_lhs, local_rhs = assemble_element_systems(
+    local_lhs, local_rhs = collect_element_systems(
         coordinates, elements, forcing=forcing
     )
     assert local_lhs.shape == (2, 3, 3)
