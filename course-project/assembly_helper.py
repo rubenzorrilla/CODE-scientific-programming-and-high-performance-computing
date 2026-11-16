@@ -53,7 +53,7 @@ def _evaluate_forcing_values(
     return np.asarray(values, dtype=float)
 
 
-def collect_element_systems(
+def build_element_systems(
     coordinates: ArrayLike,
     elements: ArrayLike,
     forcing: float | Callable[[float, float], float] | ArrayLike = 0.0,

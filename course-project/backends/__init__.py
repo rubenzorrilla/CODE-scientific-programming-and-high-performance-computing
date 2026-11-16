@@ -12,7 +12,7 @@ should expose the following functions:
 ``impose_dirichlet_conditions`` should return a new system and leave its inputs
 unchanged, because ``main.py`` uses the original system for a PDE residual check.
 
-The local arrays come from ``assembly.assemble_element_systems``:
+The local arrays come from ``assembly_helper.build_element_systems``:
 
     element_lhs: (n_elements, n_local, n_local)
     element_rhs: (n_elements, n_local)

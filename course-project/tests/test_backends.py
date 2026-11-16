@@ -1,7 +1,7 @@
 import numpy as np
 
-from assembly import assemble_element_systems
-from boundary_conditions import collect_dirichlet_conditions
+from assembly_helper import build_element_systems
+from boundary_conditions import collect_boundary_values
 
 from backends.dense_reference import (
     allocate_global_system,
@@ -35,7 +35,7 @@ def test_allocate_global_system_returns_zero_dense_arrays():
 
 def test_backend_assembles_local_arrays_into_global_system():
     coordinates, elements = square_triangular_mesh()
-    element_lhs, element_rhs = assemble_element_systems(coordinates, elements)
+    element_lhs, element_rhs = build_element_systems(coordinates, elements)
 
     global_lhs, global_rhs = allocate_global_system(coordinates.shape[0])
     global_lhs, global_rhs = assemble_global_system(

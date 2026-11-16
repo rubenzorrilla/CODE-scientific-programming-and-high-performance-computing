@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable, Mapping
 from typing import Literal, TypeAlias
 
@@ -14,7 +13,7 @@ BoundaryValue: TypeAlias = (
 )
 
 
-def collect_dirichlet_conditions(
+def collect_boundary_values(
     coordinates: ArrayLike,
     boundaries: Mapping[str, ArrayLike],
     boundary_values: Mapping[str, BoundaryValue],
@@ -26,8 +25,8 @@ def collect_dirichlet_conditions(
         - A function ``value(x, y)``.
         - The string ``"free"`` to leave the boundary unconstrained.
 
-    If different values are prescribed at a shared corner node, the value
-    from the first boundary in the input dictionary is retained.
+    If different values are prescribed at a shared corner node, a
+    ``ValueError`` is raised.
     """
     coordinates = np.asarray(coordinates, dtype=float)
 
@@ -37,7 +36,6 @@ def collect_dirichlet_conditions(
         raise ValueError("coordinates must contain only finite values.")
 
     values_by_dof: dict[int, float] = {}
-    source_by_dof: dict[int, str] = {}
 
     for boundary_name, boundary_value in boundary_values.items():
 
@@ -85,18 +83,13 @@ def collect_dirichlet_conditions(
                 if not np.isclose(
                     values_by_dof[dof], value, rtol=1e-10, atol=1e-12
                 ):
-                    warnings.warn(
-                        f"Conflicting Dirichlet values at node {dof}, "
-                        f"shared by boundaries {source_by_dof[dof]!r} "
-                        f"and {boundary_name!r}. "
-                        f"Keeping the value from {source_by_dof[dof]!r}.",
-                        RuntimeWarning,
-                        stacklevel=2,
+                    raise ValueError(
+                        f"Inconsistent Dirichlet values at node {dof}: "
+                        f"{values_by_dof[dof]} and {value}."
                     )
                 continue
 
             values_by_dof[dof] = value
-            source_by_dof[dof] = boundary_name
 
     dofs = np.asarray(sorted(values_by_dof), dtype=np.int64)
     values = np.asarray(

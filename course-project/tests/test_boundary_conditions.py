@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from boundary_conditions import collect_dirichlet_conditions
+from boundary_conditions import collect_boundary_values
 
 
 def test_collect_boundary_values_and_merge_corner_nodes():
@@ -14,7 +14,7 @@ def test_collect_boundary_values_and_merge_corner_nodes():
         "bottom": np.array([0, 1]),
         "top": np.array([3, 2]),
     }
-    dofs, values = collect_dirichlet_conditions(
+    dofs, values = collect_boundary_values(
         coordinates,
         boundaries,
         {
@@ -33,7 +33,7 @@ def test_conflicting_corner_values_are_rejected():
     coordinates = np.array([[0.0, 0.0], [1.0, 0.0]])
     boundaries = {"left": np.array([0]), "bottom": np.array([0, 1])}
     with pytest.raises(ValueError, match="Inconsistent"):
-        collect_dirichlet_conditions(
+        collect_boundary_values(
             coordinates, boundaries, {"left": 0.0, "bottom": 1.0}
         )
 
@@ -42,6 +42,19 @@ def test_missing_boundary_name_is_rejected():
     coordinates = np.array([[0.0, 0.0], [1.0, 0.0]])
     boundaries = {"left": np.array([0])}
     with pytest.raises(KeyError):
-        collect_dirichlet_conditions(
+        collect_boundary_values(
             coordinates, boundaries, {"top": 1.0}
         )
+
+
+def test_free_boundary_is_not_constrained():
+    coordinates = np.array([[0.0, 0.0], [1.0, 0.0]])
+    boundaries = {"left": np.array([0]), "right": np.array([1])}
+    dofs, values = collect_boundary_values(
+        coordinates,
+        boundaries,
+        {"left": 0.0, "right": "free"},
+    )
+
+    np.testing.assert_array_equal(dofs, [0])
+    np.testing.assert_allclose(values, [0.0])

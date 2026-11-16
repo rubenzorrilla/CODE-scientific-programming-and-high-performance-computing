@@ -10,7 +10,7 @@ The project solves the Poisson equation
 \nabla^2 u = f(x,y)
 \]
 
-on a structured square mesh using the finite element method (FEM). When \(f=0\), this is the homogeneous Laplace equation. The project is designed to teach scientific Python, local element assembly, global assembly, boundary-condition imposition, linear solution strategies, visualization, and performance analysis. The FEM derivation is treated as a black box.
+on a structured square mesh using the finite element method (FEM). When \(f=0\), this is the homogeneous Laplace equation. The project is designed to teach scientific Python, global assembly, boundary-condition imposition, linear solution strategies, visualization, and performance analysis. Mesh generation and local element calculations are provided as a black box; students implement the backend global operations. The FEM derivation is treated as a black box.
 
 ## Current workflow
 
@@ -32,9 +32,8 @@ course-project/
 ├── main.py
 ├── mesh.py
 ├── laplacian_element.py
-├── assembly.py
+├── assembly_helper.py
 ├── boundary_conditions.py
-├── solver.py
 ├── visualization.py
 ├── backends/
 │   ├── __init__.py
@@ -46,10 +45,9 @@ course-project/
 └── tests/
     ├── test_mesh.py
     ├── test_laplacian_element.py
-    ├── test_assembly.py
+    ├── test_assembly_helper.py
     ├── test_boundary_conditions.py
     ├── test_backends.py
-    ├── test_solver.py
     └── test_visualization.py
 ```
 
@@ -65,7 +63,7 @@ solve_linear_system(global_lhs, global_rhs)
 visualize(coordinates, elements, solution, scalar_name="u", show_edges=True, screenshot=None)
 ```
 
-The local arrays produced by `assembly.assemble_element_systems` have shapes:
+The local arrays produced by `assembly_helper.build_element_systems` have shapes:
 
 - `element_lhs`: `(n_elements, n_local, n_local)`
 - `element_rhs`: `(n_elements, n_local)`
@@ -143,11 +141,11 @@ The main script reports the free-DOF residual norm and the maximum nodal error r
 
 ## Forcing field
 
-`assembly.assemble_element_systems` accepts a forcing field as a constant, a nodal array, or a function \(f(x,y)\):
+`assembly_helper.build_element_systems` accepts a forcing field as a constant, a nodal array, or a function \(f(x,y)\):
 
 ```python
 forcing = lambda x, y: x + 2.0 * y
-element_lhs, element_rhs = assemble_element_systems(
+element_lhs, element_rhs = build_element_systems(
     coordinates, elements, forcing=forcing
 )
 ```
