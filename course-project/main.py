@@ -1,5 +1,5 @@
 """Main workflow: mesh, local element systems, backend global operations,
-Dirichlet BCs, solve, residual check, error check, and visualization.
+Dirichlet BCs, solve, residual check, optional reference-error check, and visualization.
 
 The mesh generation and local element calculations are provided as a black box.
 Students implement the backend global operations.
@@ -17,11 +17,70 @@ from boundary_conditions import collect_boundary_values
 
 
 def exact_solution(x, y):
-    """Analytical harmonic field used to define boundary data and check error."""
+    """Default analytical harmonic field used for boundary data and error checking."""
     return np.sin(np.pi * x) * np.sinh(np.pi * y) / np.sinh(np.pi)
 
 
-def run_workflow(backend, element_type, nx, ny, screenshot):
+def is_zero_forcing(forcing):
+    """Check whether the forcing term is exactly zero."""
+    if callable(forcing):
+        return False
+    return bool(np.all(np.asarray(forcing, dtype=float) == 0.0))
+
+
+def compute_reference_error(
+    solution,
+    coordinates,
+    constrained_dofs,
+    prescribed_values,
+    reference_solution,
+):
+    """Compare the computed nodal solution against a reference solution.
+
+    The reference solution must agree with the prescribed Dirichlet values at
+    constrained nodes; otherwise the comparison is not meaningful.
+    """
+    coordinates = np.asarray(coordinates, dtype=float)
+    solution = np.asarray(solution, dtype=float)
+    constrained_dofs = np.asarray(constrained_dofs, dtype=np.int64)
+    prescribed_values = np.asarray(prescribed_values, dtype=float)
+
+    if callable(reference_solution):
+        reference_values = np.asarray(
+            reference_solution(coordinates[:, 0], coordinates[:, 1]),
+            dtype=float,
+        )
+    else:
+        reference_values = np.asarray(reference_solution, dtype=float)
+
+    if reference_values.shape != (coordinates.shape[0],):
+        raise ValueError(
+            "reference_solution must provide one value per mesh node."
+        )
+
+    if constrained_dofs.size:
+        mismatch = np.abs(
+            reference_values[constrained_dofs] - prescribed_values
+        )
+        if np.any(mismatch > 1e-10):
+            raise ValueError(
+                "reference_solution does not match the prescribed boundary values. "
+                "Use reference_solution=None for a mismatched or random case."
+            )
+
+    return float(np.max(np.abs(solution - reference_values)))
+
+
+def run_workflow(
+    backend,
+    element_type,
+    nx,
+    ny,
+    screenshot,
+    boundary_values,
+    forcing=0.0,
+    reference_solution=None,
+):
     # 1. Mesh: provided, black box.
     coordinates, elements, boundaries = generate_mesh(
         length_x=1.0,
@@ -31,22 +90,12 @@ def run_workflow(backend, element_type, nx, ny, screenshot):
         element_type=element_type,
     )
 
-    # 2. Dirichlet data for u(x,y) = sin(pi*x)*sinh(pi*y)/sinh(pi):
-    #    u = 0 on left, right, and bottom; u = sin(pi*x) on the top edge.
-    boundary_values = {
-        "left": 0.0,
-        "right": 0.0,
-        "bottom": 0.0,
-        "top": lambda x, y: np.sin(np.pi * x),
-    }
+    # 2. Dirichlet data: provided problem data.
     constrained_dofs, prescribed_values = collect_boundary_values(
         coordinates, boundaries, boundary_values
     )
 
     # 3. Local element systems: provided, black box.
-    # The default example is homogeneous: forcing = 0.
-    # Change this to a scalar, array, or f(x, y) to test a forcing field.
-    forcing = 0.0
     element_lhs, element_rhs = build_element_systems(
         coordinates, elements, forcing=forcing
     )
@@ -71,18 +120,32 @@ def run_workflow(backend, element_type, nx, ny, screenshot):
     free_mask[constrained_dofs] = False
     free_residual_norm = np.linalg.norm(residual[free_mask])
 
-    exact_values = exact_solution(coordinates[:, 0], coordinates[:, 1])
-    max_nodal_error = np.max(np.abs(solution - exact_values))
-
     print(f"Backend: {backend.__name__}")
     print(f"Element type: {element_type}")
     print(f"Number of nodes: {coordinates.shape[0]}")
     print(f"Number of elements: {elements.shape[0]}")
     print(f"Number of constrained DOFs: {constrained_dofs.size}")
     print(f"Free-DOF residual norm: {free_residual_norm:.6e}")
-    print(f"Maximum nodal error against analytical solution: {max_nodal_error:.6e}")
 
-    # 8. Visualization: student backend.
+    # 8. Optional error check against a reference solution.
+    if reference_solution is None:
+        print("Reference solution error: not applicable.")
+    else:
+        if not is_zero_forcing(forcing):
+            print(
+                "Warning: the reference error is only meaningful if the reference "
+                "solution corresponds to the chosen forcing term."
+            )
+        reference_error = compute_reference_error(
+            solution,
+            coordinates,
+            constrained_dofs,
+            prescribed_values,
+            reference_solution,
+        )
+        print(f"Maximum nodal error against reference solution: {reference_error:.6e}")
+
+    # 9. Visualization: student backend.
     backend.visualize(
         coordinates,
         elements,
@@ -122,12 +185,27 @@ def main():
     args = parser.parse_args()
 
     backend = importlib.import_module(args.backend)
+
+    # Default problem: homogeneous Laplace equation with the documented boundary
+    # data. Change these three values to test a different problem.
+    boundary_values = {
+        "left": 0.0,
+        "right": 0.0,
+        "bottom": 0.0,
+        "top": lambda x, y: np.sin(np.pi * x),
+    }
+    forcing = 0.0
+    reference_solution = exact_solution
+
     run_workflow(
         backend,
         args.element_type,
         args.nx,
         args.ny,
         args.screenshot,
+        boundary_values=boundary_values,
+        forcing=forcing,
+        reference_solution=reference_solution,
     )
 
 
